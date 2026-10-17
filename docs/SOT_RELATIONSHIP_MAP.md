@@ -7,8 +7,8 @@ and SMTP are adapters around these owners.
 | Domain/state | Authoritative input and owner | Canonical writer | Derived/projection state | Reconciler/backstop |
 |---|---|---|---|---|
 | Academy deployment identity | Sole offline-created `Tenant` row plus `TENANCY=single` topology | Offline bootstrap owns identity; kernel startup owns binding | `request.state.tenant` | Startup rejects zero/multiple tenants; resolver rejects any slug other than the database-owned binding; RLS fails closed |
-| User identity and roles | `Person`, `UserCredential`, `Role`, `PersonRole` | Account/lifecycle services | Auth sessions and navigation permissions | Tenant-bound token/session checks; admin invitation workflow |
-| Login abuse state | Credential failure count and `locked_until` | `web_auth.authenticate` | Login response | Credential row lock and successful-login reset |
+| User identity and roles (current, before ADR 0009 cutover) | `Person`, `UserCredential`, `Role`, `PersonRole` | Account/lifecycle services | Auth sessions and navigation permissions | Tenant-bound token/session checks; admin invitation workflow; ADR 0009's verified cutover is the gate to kernel Party authority |
+| Login abuse state (current, before ADR 0009 cutover) | Credential failure count and `locked_until` | `web_auth.authenticate` | Login response | Credential row lock and successful-login reset; ADR 0009 targets Academy-owned `academy_login_security` without extending the kernel credential privately |
 | Applicant intake | Public `/apply` facts | `admissions.submit_application` | Applicant profile completeness and display `program` | Idempotent email-key intake; admin review for legacy gaps |
 | Curriculum placement | Active `Track` + `CohortTrack` | Public canonical selection or audited `assign_applicant_intake` | `Applicant.track_id`, `Enrollment.track_id`, `program` snapshot | Composite FKs; acceptance/enrolment gate; admin placement correction |
 | Admissions decision | Applicant facts, assessment validity, configured threshold | `admissions.transition_applicant` / `apply_assessment_policy` | Current applicant status | `AuditEvent` transition ledger; admin detail history |
@@ -20,6 +20,7 @@ and SMTP are adapters around these owners.
 | SMTP delivery | One outbox row | `email_outbox.deliver_pending` | `sent_at`, sanitized error class, invite delivery projection | `academy-email-outbox.timer`; SMTP is transport only |
 | Academy settings | Environment defaults plus `platform_settings` overrides | Academy admin settings route using restricted settings-writer role | Effective SMTP/branding/policy/lab config | DB-over-env resolver; blank secret fields preserve existing value |
 | Application runtime | `app.assembly` product declaration | `dotmac_kernel.create_app` | FastAPI app, lifespan, tenancy binding, generic middleware and liveness | Architecture tests forbid a parallel app factory and copied middleware |
+| Database schema lineage (current, before ADR 0009 cutover) | Academy's local `0001_initial_tenant_schema` ... `0061_lab_completion_grants` graph, source-revalidated at `61f69194` | Academy Alembic revisions | `alembic_version` current head | ADR 0009 forbids direct composition with the duplicate kernel root and defines the verified kernel plus independent `a001_adopt_academy` assembly rebaseline; the initial 0053 endpoint is historical |
 | Official operational history | Domain service facts | `write_audit_event` | Admin audit and applicant decision history | Migration baseline plus append-only application behavior |
 | Student reminder consequence | Canonical enrollment/deadline/session/grade/completion state + `ReminderPreference` | `reminders.sweep` (sole decision owner; ledger `ReminderLog` enforces once-per-occurrence) | In-app notification + outbox email (immediate/digest/quiet-hours pacing) | `academy-reminders.timer` re-sweeps idempotently; admin history + audited resend; outbox stays delivery owner |
 | Public catalog visibility | `Course.listed` + `status='published'` (ADR 0003) | Course import/authoring services | Anonymous landing and `/courses` projection | `catalog.public_catalog` is the only reader; routes add no extra filters; external marketing pages are 301 redirects, never copies |
@@ -52,3 +53,35 @@ Any future move to multi-customer hosting, a different admissions owner, an
 external LMS decision engine, or an external notification control plane must
 name the old and new owner, shadow verification, cutover gate, drift repair,
 fallback retirement, and boundary tests in an ADR before cutover.
+
+ADR 0009 preserves PR #122's accepted authority-migration design; it has **not**
+cut over. Implementation remains `design_only` and external evidence remains
+`pending_external_evidence`. Current identity and lineage owners above remain
+authoritative. Kernel owns the target tenancy, Party/person identity,
+credentials, sessions, RBAC and audit identity; Academy retains product profile
+and login-security state and the independent assembly lineage. The accepted
+`a001_adopt_academy` strategy is unchanged. ADR 0008 remains the lab-worker role
+decision, not the identity decision.
+
+The source-revalidated census is **28 human references: 11 physical foreign
+keys and 17 logical references**. `lab_operations.requested_by` adds nullable
+Person-UUID attribution introduced by 0055: user-triggered requests name the
+person; automated requests use NULL. `lab_operations.claimed_by` is a worker
+fencing string and is excluded. The initial PR #122 census (27 = 11 + 16) and
+0053 lineage coordinate are historical design evidence, not production proof.
+
+The design composes fleet patterns without copying product identity schemas:
+Starter supplies create-or-adopt catalog/lineage rehearsals; Sub supplies
+evidence-bound audit/adjudication/backfill; ERP supplies the replaceable
+external-authentication boundary. General Vendor CP platform/P11 evidence is
+complete, but it does not satisfy Sub's tenant-plane-1/RLS expected-failure gate
+or Academy's own rehearsals. True Kernel Party/facet contracts and a separately
+validated published floor remain prerequisites. A facade, SDK, shadow binding,
+lineage stamp, existence-skip or released-DDL edit is not adoption evidence.
+Every unchanged installed Kernel revision must actually execute on its owning
+connection with genuine independent history before runtime cutover. The old
+a38 stamp/deferred-revision bridge is historical and superseded; an existing
+Academy version row cannot substitute for Kernel history. Canonical entry
+mechanics remain unresolved and require a separate proposal/rehearsal; no
+escrow executor is selected. Academy's accepted final `a001_adopt_academy`
+strategy must depend on that actual canonical Kernel head.

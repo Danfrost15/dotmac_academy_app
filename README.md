@@ -12,6 +12,9 @@ does not expose public tenant provisioning or public account registration.
 Architecture:
 
 - [ADR 0007 — Academy Is a Kernel Product Assembly](docs/adr/0007-academy-is-a-kernel-assembly.md)
+- [ADR 0009 — Kernel Identity and Migration-Lineage Cutover](docs/adr/0009-kernel-identity-and-lineage-cutover.md) — accepted design; implementation and external evidence remain gated
+  on execution of the entire unchanged Kernel chain before runtime cutover;
+  canonical entry mechanics remain unresolved and Kernel stamping is forbidden.
 - [ADR 0002 — Single-Academy Deployment](docs/adr/0002-single-academy-deployment.md)
 - [ADR 0006 — Shared UI Contract](docs/adr/0006-adopt-shared-ui-contract.md)
 - [ADR 0008 — Dedicated non-owning lab-worker database role](docs/adr/0008-lab-worker-database-role.md)
